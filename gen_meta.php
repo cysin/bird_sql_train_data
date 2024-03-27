@@ -22,20 +22,24 @@ function get_table_descriptions($dir)
 
     if ($handle = opendir($dir)) {
         while (false !== ($entry = readdir($handle))) {
-            if ($entry != '.' && $entry != '..') {
+            $file_extension = pathinfo($entry, PATHINFO_EXTENSION);
+            if ($file_extension === 'csv') {
                 $file_path = $dir . '/' . $entry;
                 $table = strtolower(pathinfo($entry, PATHINFO_FILENAME));
 
                 $file = fopen($file_path, 'r');
-                $header = fgetcsv($file); // Read header row
+                $header_row = fgetcsv($file);
+                $header = array_map('remove_special_chars', $header_row);
 
                 $column_descriptions = [];
+                $column_indices = array_flip(array_map('strtolower', $header));
+
                 while (($data = fgetcsv($file, 0, ',')) !== false) {
-                    $original_column_name = isset($data[0]) ? utf8_encode($data[0]) : '';
-                    $column_name = isset($data[1]) ? utf8_encode($data[1]) : '';
-                    $column_description = isset($data[2]) ? utf8_encode($data[2]) : '';
-                    $data_format = isset($data[3]) ? utf8_encode($data[3]) : '';
-                    $value_description = isset($data[4]) ? utf8_encode($data[4]) : '';
+                    $original_column_name = isset($column_indices['original_column_name']) ? utf8_encode($data[$column_indices['original_column_name']]) : '';
+                    $column_name = isset($column_indices['column_name']) ? utf8_encode($data[$column_indices['column_name']]) : '';
+                    $column_description = isset($column_indices['column_description']) ? utf8_encode($data[$column_indices['column_description']]) : '';
+                    $data_format = isset($column_indices['data_format']) ? utf8_encode($data[$column_indices['data_format']]) : '';
+                    $value_description = isset($column_indices['value_description']) ? utf8_encode($data[$column_indices['value_description']]) : '';
 
                     $column_descriptions[$original_column_name] = [
                         'column_name' => $column_name,
@@ -45,7 +49,7 @@ function get_table_descriptions($dir)
                     ];
                 }
 
-                $descriptions[strtolower($table)] = [
+                $descriptions[$table] = [
                     'column_comment' => $column_descriptions,
                 ];
                 fclose($file);
@@ -55,6 +59,12 @@ function get_table_descriptions($dir)
     }
 
     return $descriptions;
+}
+
+// Helper function to remove special characters from a string
+function remove_special_chars($string)
+{
+    return preg_replace('/[^a-zA-Z0-9_\s]/', '', $string);
 }
 
 // Traverse 'train_databases' directory
@@ -77,10 +87,12 @@ if ($handle = opendir($train_databases_dir)) {
                 $table_descriptions = get_table_descriptions($description_dir);
 
                 foreach ($table_schemas as $table_name => $schema) {
-                    $databases[$db_name][strtolower($table_name)] = [
-                        'schema' => $schema,
-                        'column_comment' => isset($table_descriptions[strtolower($table_name)]['column_comment']) ? $table_descriptions[strtolower($table_name)]['column_comment'] : [],
-                    ];
+                    if (isset($table_descriptions[strtolower($table_name)])) {
+                        $databases[$db_name][strtolower($table_name)] = [
+                            'schema' => $schema,
+                            'column_comment' => $table_descriptions[strtolower($table_name)]['column_comment'],
+                        ];
+                    }
                 }
             }
         }
