@@ -27,16 +27,10 @@ function get_table_descriptions($dir)
                 $table = strtolower(pathinfo($entry, PATHINFO_FILENAME));
 
                 $file = fopen($file_path, 'r');
-                $header = fgetcsv($file);
+                $header = fgetcsv($file); // Read header row
 
                 $column_descriptions = [];
-                $first_row = true;
                 while (($data = fgetcsv($file, 0, ',')) !== false) {
-                    if ($first_row) {
-                        $first_row = false;
-                        continue; // Skip the first row (header)
-                    }
-
                     $original_column_name = isset($data[0]) ? utf8_encode($data[0]) : '';
                     $column_name = isset($data[1]) ? utf8_encode($data[1]) : '';
                     $column_description = isset($data[2]) ? utf8_encode($data[2]) : '';
