@@ -8,7 +8,7 @@ function get_table_schemas($db_path)
 
     $result = $db->query("SELECT name, sql FROM sqlite_master WHERE type='table'");
     while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-        $tables[$row['name']] = utf8_encode($row['sql']);
+        $tables[strtolower($row['name'])] = utf8_encode($row['sql']);
     }
 
     $db->close();
@@ -24,26 +24,34 @@ function get_table_descriptions($dir)
         while (false !== ($entry = readdir($handle))) {
             if ($entry != '.' && $entry != '..') {
                 $file_path = $dir . '/' . $entry;
-                $table = pathinfo($entry, PATHINFO_FILENAME);
+                $table = strtolower(pathinfo($entry, PATHINFO_FILENAME));
 
                 $file = fopen($file_path, 'r');
-                $header = fgetcsv($file); // Skip header row
+                $header = fgetcsv($file);
 
                 $column_descriptions = [];
-                while (($data = fgetcsv($file, 0, ',', '"')) !== false) {
-                    $original_column_name = utf8_encode($data[0]);
-                    $data_format = utf8_encode($data[3]);
-                    $column_description = utf8_encode($data[2]);
-                    $value_description = utf8_encode($data[4]);
+                $first_row = true;
+                while (($data = fgetcsv($file, 0, ',')) !== false) {
+                    if ($first_row) {
+                        $first_row = false;
+                        continue; // Skip the first row (header)
+                    }
+
+                    $original_column_name = isset($data[0]) ? utf8_encode($data[0]) : '';
+                    $column_name = isset($data[1]) ? utf8_encode($data[1]) : '';
+                    $column_description = isset($data[2]) ? utf8_encode($data[2]) : '';
+                    $data_format = isset($data[3]) ? utf8_encode($data[3]) : '';
+                    $value_description = isset($data[4]) ? utf8_encode($data[4]) : '';
 
                     $column_descriptions[$original_column_name] = [
+                        'column_name' => $column_name,
                         'data_format' => $data_format,
                         'column_description' => $column_description,
                         'value_description' => $value_description,
                     ];
                 }
 
-                $descriptions[$table] = [
+                $descriptions[strtolower($table)] = [
                     'column_comment' => $column_descriptions,
                 ];
                 fclose($file);
@@ -75,9 +83,9 @@ if ($handle = opendir($train_databases_dir)) {
                 $table_descriptions = get_table_descriptions($description_dir);
 
                 foreach ($table_schemas as $table_name => $schema) {
-                    $databases[$db_name][$table_name] = [
+                    $databases[$db_name][strtolower($table_name)] = [
                         'schema' => $schema,
-                        'column_comment' => isset($table_descriptions[$table_name]['column_comment']) ? $table_descriptions[$table_name]['column_comment'] : [],
+                        'column_comment' => isset($table_descriptions[strtolower($table_name)]['column_comment']) ? $table_descriptions[strtolower($table_name)]['column_comment'] : [],
                     ];
                 }
             }
